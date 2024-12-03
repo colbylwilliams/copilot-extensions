@@ -14,8 +14,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/colbylwilliams/copilot-extensions/pkg/agent"
-
-	// "github.com/colbylwilliams/copilot-extensions/pkg/agent/agentadhd"
 	"github.com/colbylwilliams/copilot-extensions/pkg/agent/agentplateng"
 	"github.com/colbylwilliams/copilot-extensions/pkg/agent/payload"
 	"github.com/colbylwilliams/copilot-extensions/pkg/auth"
@@ -27,19 +25,9 @@ import (
 	"github.com/openai/openai-go/azure"
 )
 
-// from: github.com/github/copilot-api/cmd/http/main.go
 const (
-	readTimeout    = 5 * time.Second
-	handlerTimeout = 180 * time.Second
-
-	// writeTimeout is set to 300 seconds (5 minutes) because the number of
-	// tokens in the response can be large. This was previously set to 2 and
-	// 2.5 minutes. Clients are experiencing truncated responses, and
-	// increasing this does not seem to have any negative impact on the
-	// service. From the docs at https://pkg.go.dev/net/http#Server
-	// "WriteTimeout is the maximum duration before timing out writes of the
-	// response. It is reset whenever a new request’s header is read.".
-	writeTimeout = 300 * time.Second
+	readTimeout  = 5 * time.Second   // 5 seconds
+	writeTimeout = 300 * time.Second // 5 minutes
 )
 
 func main() {
