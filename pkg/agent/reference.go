@@ -18,6 +18,7 @@ const (
 	ReferenceTypeClientSelection  ReferenceType = "client.selection"
 )
 
+// Reference copilot reference in chat messages
 type Reference struct {
 	Type       ReferenceType     `json:"type"`
 	ID         string            `json:"id"`
@@ -27,6 +28,7 @@ type Reference struct {
 	RawData    json.RawMessage   `json:"data"`
 }
 
+// ReferenceMetadata contains metadata about a reference
 type ReferenceMetadata struct {
 	DisplayName string `json:"display_name"`
 	DisplayIcon string `json:"display_icon"`
@@ -48,10 +50,14 @@ const (
 	ReferenceDataTypeClientSelection  ReferenceDataType = "client.selection"
 )
 
+// ReferenceDataGitHubRedacted represents a
+// redacted copilot reference
 type ReferenceDataGitHubRedacted struct {
 	Type ReferenceDataType `json:"type"` // "github.redacted"
 }
 
+// ReferenceDataGitHubAgent represents a
+// reference to a copilot agent
 type ReferenceDataGitHubAgent struct {
 	AvatarURL string            `json:"avatarURL"`
 	ID        int64             `json:"id"`
@@ -60,6 +66,8 @@ type ReferenceDataGitHubAgent struct {
 	URL       string            `json:"url"`
 }
 
+// ReferenceDataGitHubCurrentUrl represents the
+// current URL reference data from a _session message
 type ReferenceDataGitHubCurrentUrl struct {
 	Type  ReferenceDataType `json:"type"` // "github.current-url" (hardcoded)
 	URL   string            `json:"url"`
@@ -69,6 +77,8 @@ type ReferenceDataGitHubCurrentUrl struct {
 	Hash  string            `json:"hash,omitempty"`
 }
 
+// ReferenceDataGitHubFile represents a reference to a
+// file on github.com
 type ReferenceDataGitHubFile struct {
 	CommitOID    string            `json:"commitOID"`
 	LanguageID   int64             `json:"languageID"`
@@ -82,6 +92,8 @@ type ReferenceDataGitHubFile struct {
 	URL          string            `json:"url"`
 }
 
+// ReferenceDataGitHubRepository represents a
+// reference to a repository on github.com
 type ReferenceDataGitHubRepository struct {
 	CommitOID   string                                   `json:"commitOID"`
 	Description string                                   `json:"description"`
@@ -105,6 +117,8 @@ type ReferenceDataGitHubRepositoryRefInfo struct {
 	Type string `json:"type"`
 }
 
+// ReferenceDataGitHubSnippet represents a
+// reference to a snippet on github.com
 type ReferenceDataGitHubSnippet struct {
 	CommitOID    string                          `json:"commitOID"`
 	LanguageID   int64                           `json:"languageID"`
@@ -123,12 +137,16 @@ type ReferenceDataGitHubSnippetRange struct {
 	Start int32 `json:"start"`
 }
 
+// ReferenceDataClientFile represents a
+// reference to a file on a client (e.g. vscode)
 type ReferenceDataClientFile struct {
 	Content  string            `json:"content"`
 	Language string            `json:"language"`
 	Type     ReferenceDataType `json:"type"` // "client.file" (hardcoded)
 }
 
+// ReferenceDataClientSelection represents a
+// reference to a selection on a client (e.g. vscode)
 type ReferenceDataClientSelection struct {
 	Content string                               `json:"content"`
 	End     ReferenceDataClientSelectionLocation `json:"end"`
@@ -203,20 +221,4 @@ func (u *ReferenceDataGitHubCurrentUrl) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
-}
-
-func (r *Reference) KnownType() bool {
-	switch r.Type {
-	case ReferenceTypeGitHubRedacted,
-		ReferenceTypeGitHubAgent,
-		ReferenceTypeGitHubCurrentUrl,
-		ReferenceTypeGitHubFile,
-		ReferenceTypeGitHubRepository,
-		ReferenceTypeGitHubSnippet,
-		ReferenceTypeClientFile,
-		ReferenceTypeClientSelection:
-		return true
-	default:
-		return false
-	}
 }

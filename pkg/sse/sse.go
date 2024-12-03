@@ -21,7 +21,7 @@ func WriteData(w io.Writer, v any) error {
 	return nil
 }
 
-// WriteData writes a data SSE message to the writer.
+// WriteDataAndFlush writes a data SSE message to the writer and flushes the writer.
 func WriteDataAndFlush(w io.Writer, v any) error {
 	if err := WriteData(w, v); err != nil {
 		return err
@@ -50,7 +50,7 @@ func WriteEvent(w io.Writer, name string) error {
 	return nil
 }
 
-// WriteEvent writes a data SSE message to the writer.
+// WriteEventAndFlush writes a data SSE message to the writer and flushes the writer.
 func WriteEventAndFlush(w io.Writer, name string) error {
 	if err := WriteEvent(w, name); err != nil {
 		return err

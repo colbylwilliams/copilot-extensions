@@ -5,7 +5,8 @@ import (
 	"errors"
 )
 
-// Confirmation represents a confirmation that the agent has sent to the user.
+// Confirmation represents a confirmation that
+// the agent has sent to the user.
 type Confirmation struct {
 	Type         string `json:"type"`
 	Title        string `json:"title"`
@@ -39,7 +40,8 @@ func (c ConfirmationType) MarshalJSON() ([]byte, error) {
 	return json.Marshal(c.name)
 }
 
-// ClientConfirmation represents a confirmation that the user has accepted or dismissed.
+// ClientConfirmation represents a confirmation
+// that the user has accepted or dismissed.
 type ClientConfirmation struct {
 	State        ClientConfirmationState `json:"state"`
 	Confirmation any                     `json:"confirmation"`

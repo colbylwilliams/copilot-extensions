@@ -5,10 +5,8 @@ import (
 	"github.com/openai/openai-go"
 )
 
-// https://github.com/github/copilot-api/pkg/azure/azuremodel/models.go
-
-// ToAgentChatMessage converts a ToAgentChatMessage from the openai sdk to the
-// internal representation of openai.ChatCompletions.
+// ToAgentResponse converts a openai ChatCompletionChunk
+// to the copilot representation of agent.Response.
 func ToAgentResponse(in *openai.ChatCompletionChunk) (*agent.Response, error) {
 	out := agent.Response{
 		ID:                in.ID,
@@ -17,8 +15,6 @@ func ToAgentResponse(in *openai.ChatCompletionChunk) (*agent.Response, error) {
 		Model:             in.Model,
 		SystemFingerprint: in.SystemFingerprint,
 		Choices:           make([]agent.ChatChoice, len(in.Choices)),
-		// Usage:               FromAzureCompletionsUsage(in.Usage),
-		// PromptFilterResults: FromAzurePromptFilterResults(in.PromptFilterResults),
 	}
 
 	for i, c := range in.Choices {
@@ -33,21 +29,17 @@ func ToAgentResponse(in *openai.ChatCompletionChunk) (*agent.Response, error) {
 	return &out, nil
 }
 
-// ToAgentChatChoiceDelta converts a ChatChoiceDelta from the openai sdk to the
-// internal representation of agent.ChatChoiceDelta.
+// ToAgentChatChoiceDelta converts a openai ChatCompletionChunkChoicesDelta
+// to the copilot representation of agent.ChatChoiceDelta.
 func ToAgentChatChoiceDelta(delta openai.ChatCompletionChunkChoicesDelta) agent.ChatChoiceDelta {
 	return agent.ChatChoiceDelta{
 		Role:    string(delta.Role),
 		Content: delta.Content,
-		// seems copilot chokes on this
-		// FunctionCall: ChatCompletionChunkChoicesDeltaFunctionCall(&delta.FunctionCall),
-		// Context:      FromAzureChatMessageContext(delta.Context),
-		// ToolCalls:    FromAzureChatMessageToolCalls(delta.ToolCalls),
 	}
 }
 
-// ToAgentChoiceDeltaFunctionCall converts a ChatMessageFunctionCall from the openai sdk to the
-// internal representation of agent.ChatMessageFunctionCall.
+// ToAgentChoiceDeltaFunctionCall converts a openai ChatCompletionChunkChoicesDeltaFunctionCall
+// to the copilot representation of agent.ChatChoiceDeltaFunctionCall
 func ToAgentChoiceDeltaFunctionCall(functionCall *openai.ChatCompletionChunkChoicesDeltaFunctionCall) *agent.ChatChoiceDeltaFunctionCall {
 	if functionCall == nil {
 		return nil

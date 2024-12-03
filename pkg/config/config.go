@@ -29,12 +29,6 @@ const (
 	GitHubAppDefaultInstallationIDKey string = "GITHUB_APP_DEFAULT_INSTALLATION_ID"
 	// chat
 	OpenAIChatModelKey string = "OPENAI_CHAT_MODEL"
-	// assistant
-	OpenAIAssistantModelKey            string = "OPENAI_ASSISTANT_MODEL"
-	OpenAIAssistantIDKey               string = "OPENAI_ASSISTANT_ID"
-	OpenAIAssistantNameKey             string = "OPENAI_ASSISTANT_NAME"
-	OpenAIAssistantDescriptionKey      string = "OPENAI_ASSISTANT_DESCRIPTION"
-	OpenAIAssistantInstructionsFileKey string = "OPENAI_ASSISTANT_INSTRUCTIONS_FILE"
 )
 
 const (
@@ -42,13 +36,9 @@ const (
 	AzureOpenAIAPIVersionDefault string = "2024-07-01-preview" //"2024-06-01"
 	// chat
 	OpenAIChatModelDefault string = openai.ChatModelGPT4o
-	// assistant
-	OpenAIAssistantModelDefault            string = openai.ChatModelGPT4o
-	OpenAIAssistantNameDefault             string = "Helpful Assistant"
-	OpenAIAssistantDescriptionDefault      string = "A helpful assistant."
-	OpenAIAssistantInstructionsFileDefault string = "instructions.sample.md"
 )
 
+// Config represents the configuration of the app.
 type Config struct {
 	Environment string
 
@@ -74,19 +64,11 @@ type Config struct {
 
 	// chat
 	ChatModel string
-
-	// assistant
-	// If an assistant ID is provided, we will use it. Otherwise, we will create a new assistant.
-	// If we create a new assistant, it should be deleted when the app is stopped.
-	AssistantIDProvided       bool
-	AssistantModel            string
-	AssistantID               string
-	AssistantName             string
-	AssistantDescription      string
-	AssistantInstructions     string
-	AssistantInstructionsFile string
 }
 
+// Load reads the environment variables and returns a new Config.
+// env is a list of .env files to load. If none are provided,
+// it will default to loading .env in the current path.
 func Load(env ...string) (*Config, error) {
 	// Load environment variables from .env files.
 	// Load doesn't really return an error, so we ignore it.
@@ -131,32 +113,10 @@ func Load(env ...string) (*Config, error) {
 	// chat
 	cfg.ChatModel = getEnvOrDefault(OpenAIChatModelKey, OpenAIChatModelDefault)
 
-	// assistant
-	cfg.AssistantModel = getEnvOrDefault(OpenAIAssistantModelKey, OpenAIAssistantModelDefault)
-
-	assistantID, ok := os.LookupEnv(OpenAIAssistantIDKey)
-	if ok && assistantID != "" {
-		cfg.AssistantIDProvided = true
-		cfg.AssistantID = assistantID
-	} else {
-		cfg.AssistantIDProvided = false
-		cfg.AssistantID = ""
-
-		// these are only used when creating a new assistant
-		cfg.AssistantName = getEnvOrDefault(OpenAIAssistantNameKey, OpenAIAssistantNameDefault)
-		cfg.AssistantDescription = getEnvOrDefault(OpenAIAssistantDescriptionKey, OpenAIAssistantDescriptionDefault)
-
-		instructionsFile := getEnvOrDefault(OpenAIAssistantInstructionsFileKey, OpenAIAssistantInstructionsFileDefault)
-
-		cfg.AssistantInstructions = getAssistantInstructions(instructionsFile)
-		cfg.AssistantInstructionsFile = instructionsFile
-	}
-
 	return cfg, nil
 }
 
-// IsProduction returns true if the environment is production.
-// We consider staging as production as well.
+// IsProduction returns true if the environment is production (or staging).
 func (cfg *Config) IsProduction() bool {
 	return !cfg.IsDevelopment()
 }
@@ -180,19 +140,6 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
-}
-
-func getAssistantInstructions(instructionsFile string) string {
-	// Read instructions from file
-	instructions := ""
-	if _, err := os.Stat(instructionsFile); err == nil {
-		instructionsBytes, err := os.ReadFile(instructionsFile)
-		if err != nil {
-			panic(err)
-		}
-		instructions = string(instructionsBytes)
-	}
-	return instructions
 }
 
 func getGitHubPrivateKey(pemFile string) []byte {

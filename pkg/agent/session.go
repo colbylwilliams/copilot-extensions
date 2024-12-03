@@ -8,13 +8,6 @@ import (
 	"strings"
 )
 
-type SessionContext struct {
-	URL   *ReferenceDataGitHubCurrentUrl
-	Item  *RepoItemRef
-	Repo  *ReferenceDataGitHubRepository
-	Agent *ReferenceDataGitHubAgent
-}
-
 type RepoItemRefType struct {
 	Singular string
 	Plural   string
@@ -25,6 +18,23 @@ var (
 	RepoItemRefTypePull  = RepoItemRefType{"pull", "pulls"}
 )
 
+var (
+	RepoRe  = regexp.MustCompile(`https://github.com/(?:orgs/)?(?P<owner>[^/]+)/(?P<repo>[^/]+)?(?P<path>(?:/(?:[^/#]+))+)?(?:#(?P<hash>.+))?`)
+	IssueRe = regexp.MustCompile(`https://github.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/issues/(?P<number>\d+)(?:#(?P<hash>.+))?`)
+	PullRe  = regexp.MustCompile(`https://github.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/pull/(?P<number>\d+)(?:/(?P<page>commits|checks|files))?(?:#(?P<hash>.+))?`)
+)
+
+// SessionContext represents the context of the chat session
+// based on the copilot references in the chat messages
+type SessionContext struct {
+	URL   *ReferenceDataGitHubCurrentUrl
+	Item  *RepoItemRef
+	Repo  *ReferenceDataGitHubRepository
+	Agent *ReferenceDataGitHubAgent
+}
+
+// RepoItemRef represents a reference to a github
+// issue or pull request
 type RepoItemRef struct {
 	Type   RepoItemRefType `json:"type"`
 	Owner  string          `json:"owner"`
@@ -36,16 +46,16 @@ type RepoItemRef struct {
 	API    string          `json:"api"`
 }
 
-var (
-	RepoRe  = regexp.MustCompile(`https://github.com/(?:orgs/)?(?P<owner>[^/]+)/(?P<repo>[^/]+)?(?P<path>(?:/(?:[^/#]+))+)?(?:#(?P<hash>.+))?`)
-	IssueRe = regexp.MustCompile(`https://github.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/issues/(?P<number>\d+)(?:#(?P<hash>.+))?`)
-	PullRe  = regexp.MustCompile(`https://github.com/(?P<owner>[^/]+)/(?P<repo>[^/]+)/pull/(?P<number>\d+)(?:/(?P<page>commits|checks|files))?(?:#(?P<hash>.+))?`)
-)
-
+// IsSession returns true if the message has the
+// role of "user" and the name of "_session"
 func (msg *Message) IsSession() bool {
 	return msg.Name == "_session"
 }
 
+// GetSession returns the message with the role of "user"
+// and the name of "_session" which is the message that the
+// github.com chat interface sends to communicate the current
+// url and other context of the chat session
 func (req *Request) GetSession() *Message {
 	// iterate over the messages in reverse order
 	for i := len(req.Messages) - 1; i >= 0; i-- {
@@ -59,6 +69,10 @@ func (req *Request) GetSession() *Message {
 	return nil
 }
 
+// GetSessionContext returns the context of the chat session,
+// including the current url, the relevant repository, agent details,
+// and the associated issue or pull request if the current url is a
+// valid issue or pull request url
 func (req *Request) GetSessionContext() (*SessionContext, error) {
 	// iterate over the messages in reverse order
 	// var session *Message
@@ -177,6 +191,7 @@ func (req *Request) GetSessionContext() (*SessionContext, error) {
 	return c, nil
 }
 
+// GetCurrentURLData returns the current url reference data from the _session message
 func GetCurrentURLData(msg *Message) *ReferenceDataGitHubCurrentUrl {
 	// we only care about the current url reference
 	// on the _session message that dotcom sends
@@ -202,6 +217,8 @@ func GetCurrentURLData(msg *Message) *ReferenceDataGitHubCurrentUrl {
 	return nil
 }
 
+// ResolveRepoItemRef resolves the owner, repo, and number
+// from a github issue or pull request url
 func ResolveRepoItemRef(url string) (*RepoItemRef, error) {
 	var i = &RepoItemRef{}
 	var re *regexp.Regexp

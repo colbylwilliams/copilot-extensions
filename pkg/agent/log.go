@@ -1,4 +1,3 @@
-// Package main implements an HTTP service and sets up a server.
 package agent
 
 import (
@@ -10,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
+// GetTempLogFileForRequest returns a temporary file for logging the request
 func GetTempLogFileForRequest(ctx context.Context) (*os.File, error) {
 	requestID := middleware.GetReqID(ctx)
 
@@ -24,6 +24,7 @@ func GetTempLogFileForRequest(ctx context.Context) (*os.File, error) {
 	return f, nil
 }
 
+// WriteRequestToFile writes the request to a file
 func WriteRequestToFile(ctx context.Context, r Request) error {
 	requestID := middleware.GetReqID(ctx)
 
@@ -59,18 +60,23 @@ func printJson(o any, newLines bool) {
 	}
 }
 
+// PrintJson prints the object as JSON
 func PrintJson(o any) {
 	printJson(o, false)
 }
 
+// PrintJsonWithNewLines prints the object as JSON
+// with new lines before and after
 func PrintJsonWithNewLines(o any) {
 	printJson(o, true)
 }
 
+// Print prints the RepoItemRef as JSON
 func (r *RepoItemRef) Print() {
 	PrintJsonWithNewLines(r)
 }
 
+// Print prints the Reference as JSON
 func (r *Reference) Print() {
 	fmt.Println("")
 	switch d := r.Data.(type) {

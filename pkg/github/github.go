@@ -14,7 +14,6 @@ import (
 	gogh "github.com/google/go-github/v64/github"
 	"github.com/jferrl/go-githubauth"
 	"golang.org/x/oauth2"
-	// octokit "github.com/octokit/go-sdk/pkg"
 )
 
 const (

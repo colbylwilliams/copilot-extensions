@@ -1,4 +1,4 @@
-package capi
+package copilot
 
 import (
 	"bytes"
@@ -18,7 +18,6 @@ type Client struct {
 
 func NewClient() *Client {
 	return &Client{
-		// TODO(josebalius): Configure the HTTP client.
 		httpClient: http.DefaultClient,
 	}
 }
@@ -106,7 +105,6 @@ func (c *Client) ChatCompletions(ctx context.Context, integrationID, token strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	// TODO(josebalius): handle rate limiting, etc.
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
