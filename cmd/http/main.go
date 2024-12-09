@@ -2,23 +2,16 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/colbylwilliams/copilot-extensions/pkg/agent"
 	"github.com/colbylwilliams/copilot-extensions/pkg/agent/agentplateng"
-	"github.com/colbylwilliams/copilot-extensions/pkg/agent/payload"
-	"github.com/colbylwilliams/copilot-extensions/pkg/auth"
-	"github.com/colbylwilliams/copilot-extensions/pkg/config"
 	"github.com/colbylwilliams/copilot-extensions/pkg/github"
+	"github.com/colbylwilliams/copilot-go"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/openai/openai-go"
@@ -26,6 +19,8 @@ import (
 )
 
 const (
+	envFile      = ".env.plat-eng"
+	defaultPort  = "3333"
 	readTimeout  = 5 * time.Second   // 5 seconds
 	writeTimeout = 300 * time.Second // 5 minutes
 )
@@ -40,46 +35,33 @@ func main() {
 //nolint:maintidx // main can have a lot of code.
 func realMain() error {
 	fmt.Println("Starting api")
-
-	const envFile = ".env.plat-eng"
 	fmt.Println("loading config from", envFile)
 
-	// load the config
-	cfg, err := config.Load(envFile)
+	cfg, err := copilot.LoadConfig(envFile)
 	if err != nil {
 		return err
 	}
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = strconv.Itoa(cfg.HTTPPort)
-		fmt.Println("no port specified, will use port from config file:", cfg.HTTPPort)
-	}
-	fmt.Println("using port:", port)
-
-	// get the public key used to verify the payload signature
-	pubKey, err := github.FetchPublicKey()
-	if err != nil {
-		return fmt.Errorf("failed to fetch public key: %w", err)
+	if cfg.HTTPPort == "" {
+		fmt.Println("no PORT environment variable specified, defaulting to", defaultPort)
+		cfg.HTTPPort = defaultPort
 	}
 
-	payloadAuthenticator, err := payload.NewAuthenticator(pubKey)
+	verifier, err := copilot.NewPayloadVerifier()
 	if err != nil {
 		return fmt.Errorf("failed to create payload authenticator: %w", err)
 	}
 
 	// create the azure credential
-	azureCredential, err := azidentity.NewAzureCLICredential(&azidentity.AzureCLICredentialOptions{TenantID: cfg.AzureTenantID})
+	azureCredential, err := azidentity.NewAzureCLICredential(&azidentity.AzureCLICredentialOptions{TenantID: cfg.Azure.TenantID})
 	if err != nil {
 		return err
 	}
 
 	// create the openai client
 	oai := openai.NewClient(
-		azure.WithEndpoint(cfg.AzureOpenAIEndpoint, cfg.AzureOpenAIAPIVersion),
+		azure.WithEndpoint(cfg.Azure.OpenAIEndpoint, cfg.Azure.OpenAIAPIVersion),
 		azure.WithTokenCredential(azureCredential),
 	)
-
-	platengAgent := agentplateng.New(cfg, oai)
 
 	// create the router
 	router := chi.NewRouter()
@@ -87,28 +69,30 @@ func realMain() error {
 	router.Use(middleware.Logger)
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Recoverer)
+	router.Use(middleware.Heartbeat("/ping"))
 
-	router.Get("/_ping", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("OK"))
+	platengAgent := agentplateng.New(cfg, oai)
+	platengRoute := platengAgent.Route()
+
+	router.Route("/"+platengRoute, func(r chi.Router) {
+		router.Post("/events", github.WebhookHandler)
+		router.Post("/agent", copilot.AgentHandler(verifier, platengAgent))
 	})
 
-	router.Post("/events", github.WebhookHandler)
+	// TODO: Add auth routes (per agent)
+	// authHandlers := &auth.AuthHandlers{
+	// 	ClientID: cfg.GitHubAppClientID,
+	// 	Callback: cfg.GitHubAppFQDN + "/auth/callback",
+	// }
 
-	router.Post("/agent", executeAgent(payloadAuthenticator, platengAgent))
+	// router.Route("/auth", func(r chi.Router) {
+	// 	r.Get("/authorization", authHandlers.PreAuth)
+	// 	r.Get("/callback", authHandlers.PostAuth)
+	// })
 
-	authHandlers := &auth.AuthHandlers{
-		ClientID: cfg.GitHubAppClientID,
-		Callback: cfg.GitHubAppFQDN + "/auth/callback",
-	}
-
-	router.Route("/auth", func(r chi.Router) {
-		r.Get("/authorization", authHandlers.PreAuth)
-		r.Get("/callback", authHandlers.PostAuth)
-	})
-
-	addr := ":" + port
+	addr := ":" + cfg.HTTPPort
 	if cfg.IsDevelopment() {
-		addr = "127.0.0.1" + addr // Prevents MacOS from prompting you about accepting network connections.
+		addr = "127.0.0.1" + addr
 	}
 
 	server := &http.Server{
@@ -118,56 +102,7 @@ func realMain() error {
 		WriteTimeout: writeTimeout,
 	}
 
-	fmt.Println("Starting server on port " + port)
+	fmt.Println("Starting server on port " + cfg.HTTPPort)
 
 	return server.ListenAndServe()
-}
-
-type executableAgent interface {
-	Execute(ctx context.Context, integrationID, token string, req *agent.Request, w http.ResponseWriter) error
-}
-
-func executeAgent(pa payload.Authenticator, a executableAgent) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		b, err := io.ReadAll(r.Body)
-		if err != nil {
-			fmt.Println(fmt.Errorf("failed to read request body: %w", err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		defer r.Body.Close()
-
-		// print all the headers
-		// fmt.Println("headers:")
-		// for k, v := range r.Header {
-		// 	fmt.Printf("  %s: %s\n", k, v)
-		// }
-
-		identifier := r.Header.Get("Github-Public-Key-Identifier")
-		sig := r.Header.Get("Github-Public-Key-Signature")
-		isValid, err := pa.IsValid(r.Context(), b, identifier, sig)
-		if err != nil {
-			fmt.Printf("failed to validate payload signature: %v\n", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		if !isValid {
-			http.Error(w, "invalid payload signature", http.StatusUnauthorized)
-			return
-		}
-
-		var req agent.Request
-		if err := json.Unmarshal(b, &req); err != nil {
-			fmt.Printf("failed to unmarshal request: %v\n", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		apiToken := r.Header.Get("X-GitHub-Token")
-		integrationID := r.Header.Get("Copilot-Integration-Id")
-		if err := a.Execute(r.Context(), integrationID, apiToken, &req, w); err != nil {
-			fmt.Printf("failed to execute agent: %v\n", err)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-	}
 }

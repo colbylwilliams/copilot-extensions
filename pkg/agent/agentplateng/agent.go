@@ -7,101 +7,53 @@ import (
 	"strings"
 
 	"github.com/colbylwilliams/copilot-extensions/pkg/agent"
-	"github.com/colbylwilliams/copilot-extensions/pkg/config"
 	"github.com/colbylwilliams/copilot-extensions/pkg/github"
-
-	"github.com/colbylwilliams/copilot-extensions/pkg/convert"
-	"github.com/colbylwilliams/copilot-extensions/pkg/sse"
+	oai "github.com/colbylwilliams/copilot-extensions/pkg/openai"
+	"github.com/colbylwilliams/copilot-go"
+	"github.com/colbylwilliams/copilot-go/sse"
 	"github.com/openai/openai-go"
-	// octokit "github.com/octokit/go-sdk/pkg"
 )
 
 type Agent struct {
-	cfg *config.Config
+	cfg *copilot.Config
 	oai *openai.Client
 }
 
-func New(cfg *config.Config, oai *openai.Client) *Agent {
+func New(cfg *copilot.Config, oai *openai.Client) *Agent {
 	return &Agent{
 		cfg: cfg,
 		oai: oai,
 	}
 }
 
-func (a *Agent) Execute(ctx context.Context, integrationID, apiToken string, req *agent.Request, w http.ResponseWriter) error {
+func (a *Agent) Route() string {
+	return "plat-eng"
+}
+
+func (a *Agent) Execute(ctx context.Context, token string, req *copilot.Request, w http.ResponseWriter) error {
 
 	// get the github user
-	gh := github.GetUserClient(a.cfg, apiToken)
+	gh := github.GetUserClient(a.cfg, token)
 	me, _, err := gh.Users.Get(ctx, "")
 	if err != nil {
 		return err
 	}
 	fmt.Println("me: ", me.GetName())
 
-	// flusher, ok := w.(http.Flusher)
-	// if !ok {
-	// 	return fmt.Errorf("sse not supported")
-	// }
-
 	// write the sse headers
 	sse.WriteStreamingHeaders(w)
 
 	messages := []openai.ChatCompletionMessageParamUnion{openai.SystemMessage(PromptStart)}
 
-	session, err := req.GetSessionContext()
-	if err != nil {
-		fmt.Println("error: ", err)
-	}
-
+	session := copilot.GetSessionInfo(ctx)
 	if session != nil {
 		agent.PrintJsonWithNewLines(session)
-
-		if session.Item != nil {
-			switch session.Item.Type {
-			case agent.RepoItemRefTypeIssue:
-				issue, _, err := gh.Issues.Get(ctx, session.Item.Owner, session.Item.Repo, session.Item.Number)
-				if err != nil {
-					return fmt.Errorf("failed to get issue: %w", err)
-				}
-				fmt.Println("issue: ", issue)
-
-				vars, _, err := gh.Actions.ListRepoVariables(ctx, session.Item.Owner, session.Item.Repo, nil)
-				if err != nil {
-					return fmt.Errorf("failed to get repo variables: %w", err)
-				}
-
-				fmt.Println("vars: ", vars)
-				for _, v := range vars.Variables {
-					fmt.Printf("  %s: %s\n", v.Name, v.Value)
-				}
-
-			case agent.RepoItemRefTypePull:
-				pr, _, err := gh.PullRequests.Get(ctx, session.Item.Owner, session.Item.Repo, session.Item.Number)
-				if err != nil {
-					return fmt.Errorf("failed to get pull request: %w", err)
-				}
-				fmt.Println("pr: ", pr)
-
-				vars, _, err := gh.Actions.ListRepoVariables(ctx, session.Item.Owner, session.Item.Repo, nil)
-				if err != nil {
-					return fmt.Errorf("failed to get repo variables: %w", err)
-				}
-
-				fmt.Println("vars: ", vars)
-				for _, v := range vars.Variables {
-					fmt.Printf("  %s: %s\n", v.Name, v.Value)
-				}
-
-			default:
-				fmt.Println("warning: unhandled session item type")
-			}
-		}
 	}
 
 	for _, m := range req.Messages {
 		// for now, we won't send the _session message
 		// web (dotcom) chat sends us downstream to openai
-		if m.IsSession() {
+		if m.IsSessionMessage() {
 			continue
 		}
 
@@ -111,33 +63,32 @@ func (a *Agent) Execute(ctx context.Context, integrationID, apiToken string, req
 		}
 
 		switch m.Role {
-		case agent.ChatRoleSystem:
+		case copilot.ChatRoleSystem:
 			messages = append(messages, openai.SystemMessage(m.Content))
 
-		case agent.ChatRoleUser:
-			messages = append(messages, openai.UserMessage(
-				// if the message begins with @agent-name then remove it
-				strings.TrimPrefix(m.Content, fmt.Sprintf("@%s ", req.Agent))))
+		case copilot.ChatRoleUser:
+			// if the message begins with @agent-name then remove it
+			messages = append(messages, openai.UserMessage(strings.TrimPrefix(m.Content, fmt.Sprintf("@%s ", req.Agent))))
 
-		case agent.ChatRoleAssistant:
+		case copilot.ChatRoleAssistant:
 			messages = append(messages, openai.AssistantMessage(m.Content))
 
 		default:
-			return fmt.Errorf("invalid role: %s", m.Role)
+			return fmt.Errorf("unhandled role: %s", m.Role)
 		}
 	}
 
 	// write the request to a file
-	if err := agent.WriteRequestToFile(ctx, *req); err != nil {
-		return err
-	}
+	// if err := agent.WriteRequestToFile(ctx, *req); err != nil {
+	// 	return err
+	// }
 
 	// write the response to a file
-	f, err := agent.GetTempLogFileForRequest(ctx)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
+	// f, err := agent.GetTempLogFileForRequest(ctx)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer f.Close()
 
 	stream := a.oai.Chat.Completions.NewStreaming(ctx, openai.ChatCompletionNewParams{
 		Messages: openai.F(messages),
@@ -146,19 +97,14 @@ func (a *Agent) Execute(ctx context.Context, integrationID, apiToken string, req
 
 	for stream.Next() {
 		evt := stream.Current()
-		chunk, err := convert.ToAgentResponse(&evt)
+		chunk, err := oai.ToAgentResponse(&evt)
 		if err != nil {
 			return err
 		}
 
-		sse.WriteDataAndFlush(w, chunk)
-		sse.WriteData(f, chunk)
-		// flusher.Flush()
+		sse.WriteData(w, chunk)
+		// sse.WriteData(f, chunk)
 	}
-
-	// sse.WriteDone(w)
-	// flusher.Flush()
-	// sse.WriteDone(f)
 
 	if err := stream.Err(); err != nil {
 		return err

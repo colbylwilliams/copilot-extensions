@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/colbylwilliams/copilot-extensions/pkg/jsonschema"
+	"github.com/colbylwilliams/copilot-go/jsonschema"
 )
 
 type Client struct {

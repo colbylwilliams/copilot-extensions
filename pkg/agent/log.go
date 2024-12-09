@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/colbylwilliams/copilot-go"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
@@ -25,7 +26,7 @@ func GetTempLogFileForRequest(ctx context.Context) (*os.File, error) {
 }
 
 // WriteRequestToFile writes the request to a file
-func WriteRequestToFile(ctx context.Context, r Request) error {
+func WriteRequestToFile(ctx context.Context, r copilot.Request) error {
 	requestID := middleware.GetReqID(ctx)
 
 	file := fmt.Sprintf("tmp/%s-req.json", requestID)
@@ -71,42 +72,37 @@ func PrintJsonWithNewLines(o any) {
 	printJson(o, true)
 }
 
-// Print prints the RepoItemRef as JSON
-func (r *RepoItemRef) Print() {
-	PrintJsonWithNewLines(r)
-}
-
 // Print prints the Reference as JSON
-func (r *Reference) Print() {
-	fmt.Println("")
-	switch d := r.Data.(type) {
-	case *ReferenceDataGitHubRedacted:
-		fmt.Println("data type: ", d.Type)
-		PrintJson(r)
-	case *ReferenceDataGitHubAgent:
-		fmt.Println("data type: ", d.Type)
-		PrintJson(r)
-	case *ReferenceDataGitHubCurrentUrl:
-		fmt.Println("data type: ", d.Type)
-		PrintJson(r)
-	case *ReferenceDataGitHubFile:
-		fmt.Println("data type: ", d.Type)
-		PrintJson(r)
-	case *ReferenceDataGitHubRepository:
-		fmt.Println("data type: ", d.Type)
-		PrintJson(r)
-	case *ReferenceDataGitHubSnippet:
-		fmt.Println("data type: ", d.Type)
-		PrintJson(r)
-	case *ReferenceDataClientFile:
-		fmt.Println("data type: ", d.Type)
-		PrintJson(r)
-	case *ReferenceDataClientSelection:
-		fmt.Println("data type: ", d.Type)
-		PrintJson(r)
-	default:
-		fmt.Println("unknown data type: ", d)
-		PrintJson(r)
-	}
-	fmt.Println("")
-}
+// func PrintReference(r *copilot.Reference) {
+// 	fmt.Println("")
+// 	switch d := r.Data.(type) {
+// 	case *copilot.ReferenceDataGitHubRedacted:
+// 		fmt.Println("data type: ", d.Type)
+// 		PrintJson(r)
+// 	case *copilot.ReferenceDataGitHubAgent:
+// 		fmt.Println("data type: ", d.Type)
+// 		PrintJson(r)
+// 	case *copilot.ReferenceDataGitHubCurrentUrl:
+// 		fmt.Println("data type: ", d.Type)
+// 		PrintJson(r)
+// 	case *copilot.ReferenceDataGitHubFile:
+// 		fmt.Println("data type: ", d.Type)
+// 		PrintJson(r)
+// 	case *copilot.ReferenceDataGitHubRepository:
+// 		fmt.Println("data type: ", d.Type)
+// 		PrintJson(r)
+// 	case *copilot.ReferenceDataGitHubSnippet:
+// 		fmt.Println("data type: ", d.Type)
+// 		PrintJson(r)
+// 	case *copilot.ReferenceDataClientFile:
+// 		fmt.Println("data type: ", d.Type)
+// 		PrintJson(r)
+// 	case *copilot.ReferenceDataClientSelection:
+// 		fmt.Println("data type: ", d.Type)
+// 		PrintJson(r)
+// 	default:
+// 		fmt.Println("unknown data type: ", d)
+// 		PrintJson(r)
+// 	}
+// 	fmt.Println("")
+// }
